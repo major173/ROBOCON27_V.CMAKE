@@ -1,0 +1,13 @@
+Windows Registry Editor Version 5.00
+
+; Remove the non-working per-user entries so they do not override the system entry.
+[-HKEY_CURRENT_USER\Software\Classes\Directory\shell\VSCode]
+[-HKEY_CURRENT_USER\Software\Classes\Folder\shell\VSCode]
+
+; Add the same type of folder command as the working CLion context-menu entry.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Directory\shell\VSCode]
+@="Open Folder with VS Code"
+"Icon"="D:\\Vscode\\Microsoft VS Code\\Code.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\Directory\shell\VSCode\command]
+@="\"D:\\Vscode\\Microsoft VS Code\\Code.exe\" \"%1\""

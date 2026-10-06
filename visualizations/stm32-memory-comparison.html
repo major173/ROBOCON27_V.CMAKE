@@ -1,0 +1,254 @@
+<div id="stm32-memory-comparison">
+  <style>
+    #stm32-memory-comparison {
+      color: var(--foreground);
+      font-size: var(--font-size-base);
+      width: 100%;
+    }
+    #stm32-memory-comparison * { box-sizing: border-box; }
+    #stm32-memory-comparison h1,
+    #stm32-memory-comparison h2,
+    #stm32-memory-comparison h3 { margin: 0; font-weight: 500; }
+    #stm32-memory-comparison h1,
+    #stm32-memory-comparison h2 { overflow-wrap: anywhere; white-space: normal; }
+    #stm32-memory-comparison h1 { margin-bottom: 4px; }
+    #stm32-memory-comparison h2 { margin-bottom: 12px; }
+    #stm32-memory-comparison h3 { margin-bottom: 8px; }
+    #stm32-memory-comparison .subtle { color: var(--muted-foreground); }
+    #stm32-memory-comparison .section { margin-top: 26px; }
+    #stm32-memory-comparison .map {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.1fr) auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+    #stm32-memory-comparison .node {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    #stm32-memory-comparison .node strong { display: block; font-weight: 500; }
+    #stm32-memory-comparison .node span { display: block; margin-top: 4px; color: var(--muted-foreground); }
+    #stm32-memory-comparison .cpu {
+      color: var(--primary-foreground);
+      background: var(--primary);
+      align-self: center;
+      text-align: center;
+    }
+    #stm32-memory-comparison .tcm { background: color-mix(in srgb, var(--viz-series-1) 14%, transparent); }
+    #stm32-memory-comparison .flash { background: color-mix(in srgb, var(--viz-series-2) 14%, transparent); }
+    #stm32-memory-comparison .domain { background: color-mix(in srgb, var(--viz-series-3) 12%, transparent); }
+    #stm32-memory-comparison .arrow {
+      align-self: center;
+      color: var(--muted-foreground);
+      text-align: center;
+      white-space: nowrap;
+    }
+    #stm32-memory-comparison .lane-label {
+      margin: 8px 0;
+      text-align: center;
+      color: var(--muted-foreground);
+    }
+    #stm32-memory-comparison .domain-row {
+      display: grid;
+      grid-template-columns: 1.35fr auto 1fr auto 0.8fr;
+      gap: 10px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    #stm32-memory-comparison .usage-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 24px;
+    }
+    #stm32-memory-comparison .usage-head,
+    #stm32-memory-comparison .bar-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+    #stm32-memory-comparison .usage-head span:last-child,
+    #stm32-memory-comparison .bar-head span:last-child { white-space: nowrap; }
+    #stm32-memory-comparison .track,
+    #stm32-memory-comparison .stack {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--muted);
+    }
+    #stm32-memory-comparison .fill { height: 100%; background: var(--viz-series-1); }
+    #stm32-memory-comparison .stack { display: flex; height: 20px; }
+    #stm32-memory-comparison .seg { height: 100%; min-width: 1px; }
+    #stm32-memory-comparison .seg-data { background: var(--viz-series-1); }
+    #stm32-memory-comparison .seg-bss { background: var(--viz-series-2); }
+    #stm32-memory-comparison .seg-heap { background: var(--viz-series-3); }
+    #stm32-memory-comparison .seg-stack { background: var(--viz-series-4); }
+    #stm32-memory-comparison .seg-free { background: var(--muted); }
+    #stm32-memory-comparison .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      margin-top: 10px;
+    }
+    #stm32-memory-comparison .legend-item { display: inline-flex; gap: 7px; align-items: center; }
+    #stm32-memory-comparison .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+    #stm32-memory-comparison .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 22px;
+    }
+    #stm32-memory-comparison .metric-bars { display: grid; gap: 9px; }
+    #stm32-memory-comparison .chip-h7 { background: var(--viz-series-1); }
+    #stm32-memory-comparison .chip-f4 { background: var(--viz-series-2); }
+    #stm32-memory-comparison .chip-f1 { background: var(--viz-series-3); }
+    #stm32-memory-comparison .table-wrap { overflow-x: auto; }
+    #stm32-memory-comparison table { min-width: 760px; }
+    #stm32-memory-comparison th:first-child { width: 16%; }
+    #stm32-memory-comparison .chip-key {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    #stm32-memory-comparison .note {
+      margin-top: 10px;
+      color: var(--muted-foreground);
+    }
+    @media (max-width: 720px) {
+      #stm32-memory-comparison .map,
+      #stm32-memory-comparison .domain-row,
+      #stm32-memory-comparison .usage-grid,
+      #stm32-memory-comparison .metrics { grid-template-columns: 1fr; }
+      #stm32-memory-comparison .arrow { font-size: 0; padding: 2px 0; }
+      #stm32-memory-comparison .arrow::after { content: "↓"; font-size: var(--font-size-base); }
+      #stm32-memory-comparison .usage-head { flex-wrap: wrap; }
+      #stm32-memory-comparison .usage-head span:last-child { white-space: normal; overflow-wrap: anywhere; }
+      #stm32-memory-comparison .lane-label { text-align: left; }
+    }
+  </style>
+
+  <header>
+    <h1>STM32H723：内存分工与三代性能差异</h1>
+    <div class="subtle">工程实测布局 · STM32H723ZGT6 · CPU 550 MHz</div>
+  </header>
+
+  <section class="section" aria-labelledby="memory-map-title">
+    <h2 id="memory-map-title">一颗 CPU，几条不同的“路”</h2>
+    <div class="map" role="img" aria-label="Cortex-M7 通过专用 TCM 通道连接 ITCM 和 DTCM，同时通过共享总线访问 Flash 与 D1、D2、D3 内存域。">
+      <div class="node tcm"><strong>ITCM · 64 KB</strong><span>指令专线｜热点代码、ISR</span></div>
+      <div class="arrow" aria-hidden="true">⇄ 专线</div>
+      <div class="node cpu"><strong>Cortex‑M7</strong><span style="color:inherit">550 MHz · CPU 核心</span></div>
+      <div class="arrow" aria-hidden="true">专线 ⇄</div>
+      <div class="node tcm"><strong>DTCM · 128 KB</strong><span>数据专线｜CPU 高频数据、栈</span></div>
+    </div>
+    <div class="lane-label">CPU 下接共享 AXI/AHB 总线：容量更大，DMA/外设也能参与访问</div>
+    <div class="domain-row" role="img" aria-label="Flash 是非易失程序存储；D1 是 320KB AXI SRAM；D2 是 32KB SRAM1和SRAM2；D3 是16KB SRAM4。">
+      <div class="node flash"><strong>FLASH · 1 MB</strong><span>断电不丢｜程序、常量、RAM 启动镜像</span></div>
+      <div class="arrow" aria-hidden="true">⇄</div>
+      <div class="node domain"><strong>D1 · AXI SRAM 320 KB</strong><span>大容量通用区｜大数组、算法工作区、堆</span></div>
+      <div class="arrow" aria-hidden="true">⇄</div>
+      <div class="node domain"><strong>D2 · 32 KB　/　D3 · 16 KB</strong><span>DMA 集散区｜低速/低功耗小仓</span></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="usage-title">
+    <h2 id="usage-title">这次构建实际把东西放在哪里</h2>
+    <div class="usage-grid">
+      <div>
+        <div class="usage-head"><span>DTCM</span><span class="tabular-nums">60,424 B / 128 KB　46.10%</span></div>
+        <div class="track" role="progressbar" aria-label="DTCM 使用率" aria-valuenow="46.10" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:46.10%"></div></div>
+      </div>
+      <div>
+        <div class="usage-head"><span>D1 AXI SRAM</span><span class="tabular-nums">0 B / 320 KB　0%</span></div>
+        <div class="track" role="progressbar" aria-label="D1 使用率" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:0%"></div></div>
+      </div>
+      <div>
+        <div class="usage-head"><span>D2 SRAM</span><span class="tabular-nums">128 B / 32 KB　0.39%</span></div>
+        <div class="track" role="progressbar" aria-label="D2 使用率" aria-valuenow="0.39" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:0.39%"></div></div>
+      </div>
+      <div>
+        <div class="usage-head"><span>D3 SRAM</span><span class="tabular-nums">0 B / 16 KB　0%</span></div>
+        <div class="track" role="progressbar" aria-label="D3 使用率" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:0%"></div></div>
+      </div>
+      <div>
+        <div class="usage-head"><span>ITCM</span><span class="tabular-nums">1,048 B / 64 KB　1.60%</span></div>
+        <div class="track" role="progressbar" aria-label="ITCM 使用率" aria-valuenow="1.60" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:1.60%"></div></div>
+      </div>
+      <div>
+        <div class="usage-head"><span>FLASH</span><span class="tabular-nums">116,664 B / 1 MB　11.13%</span></div>
+        <div class="track" role="progressbar" aria-label="Flash 使用率" aria-valuenow="11.13" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:11.13%"></div></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:20px">DTCM 的 128 KB 被谁占用</h3>
+    <div class="stack" role="img" aria-label="DTCM 128KB中，data及对齐512字节，bss 50440字节，C堆最低预留4096字节，MSP栈最低预留5376字节，剩余70648字节。">
+      <div class="seg seg-data" style="width:0.390625%"></div>
+      <div class="seg seg-bss" style="width:38.482666%"></div>
+      <div class="seg seg-heap" style="width:3.125%"></div>
+      <div class="seg seg-stack" style="width:4.101563%"></div>
+      <div class="seg seg-free" style="width:53.900146%"></div>
+    </div>
+    <div class="legend text-small">
+      <span class="legend-item"><i class="swatch seg-data"></i><span>.data + 对齐　512 B</span></span>
+      <span class="legend-item"><i class="swatch seg-bss"></i><span>.bss　50,440 B</span></span>
+      <span class="legend-item"><i class="swatch seg-heap"></i><span>C heap 最低预留　4,096 B</span></span>
+      <span class="legend-item"><i class="swatch seg-stack"></i><span>MSP stack 最低预留　5,376 B</span></span>
+      <span class="legend-item"><i class="swatch seg-free"></i><span>尚未链接分配　70,648 B</span></span>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="compare-title">
+    <h2 id="compare-title">同为 ZGT6 的公平对比：144 引脚、LQFP、1 MB Flash</h2>
+    <div class="metrics">
+      <div>
+        <h3>CPU 主频（MHz）</h3>
+        <div class="metric-bars">
+          <div><div class="bar-head"><span>H723</span><span class="tabular-nums">550</span></div><div class="track"><div class="fill chip-h7" style="width:100%"></div></div></div>
+          <div><div class="bar-head"><span>F407</span><span class="tabular-nums">168</span></div><div class="track"><div class="fill chip-f4" style="width:30.55%"></div></div></div>
+          <div><div class="bar-head"><span>F103</span><span class="tabular-nums">72</span></div><div class="track"><div class="fill chip-f1" style="width:13.09%"></div></div></div>
+        </div>
+      </div>
+      <div>
+        <h3>CoreMark（官方代表值）</h3>
+        <div class="metric-bars">
+          <div><div class="bar-head"><span>H723</span><span class="tabular-nums">2,778</span></div><div class="track"><div class="fill chip-h7" style="width:100%"></div></div></div>
+          <div><div class="bar-head"><span>F407</span><span class="tabular-nums">566</span></div><div class="track"><div class="fill chip-f4" style="width:20.37%"></div></div></div>
+          <div><div class="bar-head"><span>F103</span><span class="tabular-nums">177</span></div><div class="track"><div class="fill chip-f1" style="width:6.37%"></div></div></div>
+        </div>
+      </div>
+      <div>
+        <h3>主 RAM / TCM（KB，不含 backup）</h3>
+        <div class="metric-bars">
+          <div><div class="bar-head"><span>H723</span><span class="tabular-nums">560</span></div><div class="track"><div class="fill chip-h7" style="width:100%"></div></div></div>
+          <div><div class="bar-head"><span>F407</span><span class="tabular-nums">192</span></div><div class="track"><div class="fill chip-f4" style="width:34.29%"></div></div></div>
+          <div><div class="bar-head"><span>F103</span><span class="tabular-nums">96</span></div><div class="track"><div class="fill chip-f1" style="width:17.14%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap table-responsive" style="margin-top:22px">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th><i class="chip-key chip-h7"></i>STM32H723ZGT6</th>
+            <th><i class="chip-key chip-f4"></i>STM32F407ZGT6</th>
+            <th><i class="chip-key chip-f1"></i>STM32F103ZGT6</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th>核心</th><td>M7 · 双精度 FPU · DSP<br>32 KB I + 32 KB D Cache</td><td>M4 · 单精度 FPU · DSP<br>ART，无 L1 Cache</td><td>M3 · 无 FPU<br>无 L1 Cache</td></tr>
+          <tr><th>内存结构</th><td>ITCM + DTCM + AXI + D2/D3<br>560 KB + 4 KB backup</td><td>SRAM + 64 KB CCM<br>192 KB + 4 KB backup</td><td>普通 SRAM<br>96 KB</td></tr>
+          <tr><th>CAN</th><td>3 路 CAN FD<br>其中 1 路支持 TT‑FDCAN</td><td>2 路 Classical CAN</td><td>1 路 Classical CAN</td></tr>
+          <tr><th>模拟</th><td>2×16-bit ADC + 1×12-bit ADC<br>CORDIC / FMAC</td><td>3×12-bit ADC<br>2×12-bit DAC</td><td>3×12-bit ADC<br>2×12-bit DAC</td></tr>
+          <tr><th>高速接口</th><td>Ethernet · USB HS OTG<br>2×SDMMC · 2×OctoSPI · FMC</td><td>Ethernet · USB FS/HS OTG<br>SDIO · FSMC</td><td>USB FS · SDIO · FSMC<br>无 Ethernet / USB HS</td></tr>
+          <tr><th>图形/采集</th><td>LTDC · DMA2D · DCMI/PSSI</td><td>DCMI；无 LTDC/DMA2D</td><td>无图形加速</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note text-small">CoreMark 适合看代际量级，不等于你的控制算法一定按相同比例加速；F103C8T6（常见“蓝板”）更小，通常只有 64 KB Flash 与 20 KB SRAM。</div>
+  </section>
+</div>
