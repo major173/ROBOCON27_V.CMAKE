@@ -22,7 +22,6 @@
 #include "cmsis_os2.h"
 #include "dma.h"
 #include "fdcan.h"
-#include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
 #include "gpio.h"
@@ -58,6 +57,7 @@ void SystemClock_Config(void);
 static void MPU_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
+static void DMA_Memory_Init(void);
 
 /* USER CODE END PFP */
 
@@ -86,7 +86,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  DMA_Memory_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -99,15 +99,17 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+  MX_FDCAN2_Init();
+  MX_USART3_UART_Init();
+  MX_USART2_UART_Init();
   MX_FDCAN1_Init();
   MX_FDCAN2_Init();
   MX_FDCAN3_Init();
-  MX_USART3_UART_Init();
-  MX_TIM2_Init();
+
   /* USER CODE BEGIN 2 */
   // MX_USB_DEVICE_Init();//要放前面，因为usb设备调用的HAL tick 来自 TIM6 中断，而 TIM6 中断优先级较低，如果放在后面，可能会因为任务启动阶段有临界区/屏蔽中断导致tick不走进而导致 USB 设备初始化失败。
   // osKernelInitialize();  /* Call init function for freertos objects (in cmsis_os2.c) */
-  Robot_Init();
+  /* Robot_Init 统一在 MX_FREERTOS_Init 中调用，避免重复创建任务和通信对象。 */
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -190,6 +192,30 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void DMA_Memory_Init(void)
+{
+  /* DMA1/2 访问 D2 SRAM；该区域不缓存，避免 CPU 与 DMA 看到不同的数据。 */
+  __HAL_RCC_D2SRAM1_CLK_ENABLE();
+  __HAL_RCC_D2SRAM2_CLK_ENABLE();
+  if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+    SCB_DisableDCache();
+  }
+
+  MPU_Region_InitTypeDef region = {0};
+  region.Enable = MPU_REGION_ENABLE;
+  region.Number = MPU_REGION_NUMBER1;
+  region.BaseAddress = 0x30000000;
+  region.Size = MPU_REGION_SIZE_32KB;
+  region.TypeExtField = MPU_TEX_LEVEL1;
+  region.AccessPermission = MPU_REGION_FULL_ACCESS;
+  region.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  region.IsShareable = MPU_ACCESS_SHAREABLE;
+  region.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  region.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+  HAL_MPU_Disable();
+  HAL_MPU_ConfigRegion(&region);
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+}
 
 /* USER CODE END 4 */
 

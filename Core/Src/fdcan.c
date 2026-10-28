@@ -201,17 +201,17 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* fdcanHandle)
       __HAL_RCC_FDCAN_CLK_ENABLE();
     }
 
-    __HAL_RCC_GPIOD_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**FDCAN1 GPIO Configuration
-    PD0     ------> FDCAN1_RX
-    PD1     ------> FDCAN1_TX
+    PB8     ------> FDCAN1_RX
+    PB9     ------> FDCAN1_TX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+    GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1;
-    HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* FDCAN1 interrupt Init */
     HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 5, 0);
@@ -245,10 +245,10 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* fdcanHandle)
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
     /**FDCAN2 GPIO Configuration
-    PB12     ------> FDCAN2_RX
-    PB13     ------> FDCAN2_TX
+    PB5     ------> FDCAN2_RX
+    PB6     ------> FDCAN2_TX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13;
+    GPIO_InitStruct.Pin = GPIO_PIN_5|GPIO_PIN_6;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -285,17 +285,17 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* fdcanHandle)
       __HAL_RCC_FDCAN_CLK_ENABLE();
     }
 
-    __HAL_RCC_GPIOF_CLK_ENABLE();
+    __HAL_RCC_GPIOG_CLK_ENABLE();
     /**FDCAN3 GPIO Configuration
-    PF6     ------> FDCAN3_RX
-    PF7     ------> FDCAN3_TX
+    PG9     ------> FDCAN3_TX
+    PG10     ------> FDCAN3_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+    GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF2_FDCAN3;
-    HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+    HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
     /* FDCAN3 interrupt Init */
     HAL_NVIC_SetPriority(FDCAN3_IT0_IRQn, 5, 0);
@@ -323,10 +323,10 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* fdcanHandle)
     }
 
     /**FDCAN1 GPIO Configuration
-    PD0     ------> FDCAN1_RX
-    PD1     ------> FDCAN1_TX
+    PB8     ------> FDCAN1_RX
+    PB9     ------> FDCAN1_TX
     */
-    HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0|GPIO_PIN_1);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8|GPIO_PIN_9);
 
     /* FDCAN1 interrupt Deinit */
     HAL_NVIC_DisableIRQ(FDCAN1_IT0_IRQn);
@@ -347,10 +347,10 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* fdcanHandle)
     }
 
     /**FDCAN2 GPIO Configuration
-    PB12     ------> FDCAN2_RX
-    PB13     ------> FDCAN2_TX
+    PB5     ------> FDCAN2_RX
+    PB6     ------> FDCAN2_TX
     */
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12|GPIO_PIN_13);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_5|GPIO_PIN_6);
 
     /* FDCAN2 interrupt Deinit */
     HAL_NVIC_DisableIRQ(FDCAN2_IT0_IRQn);
@@ -371,10 +371,10 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* fdcanHandle)
     }
 
     /**FDCAN3 GPIO Configuration
-    PF6     ------> FDCAN3_RX
-    PF7     ------> FDCAN3_TX
+    PG9     ------> FDCAN3_TX
+    PG10     ------> FDCAN3_RX
     */
-    HAL_GPIO_DeInit(GPIOF, GPIO_PIN_6|GPIO_PIN_7);
+    HAL_GPIO_DeInit(GPIOG, GPIO_PIN_9|GPIO_PIN_10);
 
     /* FDCAN3 interrupt Deinit */
     HAL_NVIC_DisableIRQ(FDCAN3_IT0_IRQn);
