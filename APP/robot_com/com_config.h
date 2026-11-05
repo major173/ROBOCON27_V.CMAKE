@@ -32,6 +32,7 @@ uint8_t comServiceInit();
 void can1SendTask(void *argument);
 void can2SendTask(void *argument);
 void can3SendTask(void *argument);
+void im6014Task(void *argument); // uart2：IM6014 / RS485_1
 void uart3RxProcessTask(void *argument);
 void usbCdcProcessTask(void *argument);
 
@@ -39,6 +40,3 @@ void usbCdcProcessTask(void *argument);
 }
 #endif
 
-#ifdef __cplusplus
-
-#endif

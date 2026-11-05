@@ -31,6 +31,7 @@
 extern osThreadId_t CAN1_Send_TaskHandle;
 extern osThreadId_t CAN2_Send_TaskHandle;
 extern osThreadId_t CAN3_Send_TaskHandle;
+extern osThreadId_t im6014TaskHandle;
 extern osThreadId_t uart3ProcessTaskHandle;
 extern osThreadId_t Debug_TaskHandle;
 extern osThreadId_t ChassisTaskHandle;
@@ -38,9 +39,18 @@ extern osThreadId_t ControlTaskHandle;
 extern osThreadId_t usbcdcProcessTaskHandle;
 
 void osTaskInit(void) {
+  // 一个任务独占 IM6014 通信及夹爪状态机，避免跨任务竞争电机命令。
+  const osThreadAttr_t im6014TaskHandle_attributes = {
+      .name = "IM6014_Gripper",
+      .stack_size = 512 * 4,
+      .priority = (osPriority_t)osPriorityNormal1,
+  };
+  im6014TaskHandle =
+      osThreadNew(im6014Task, NULL, &im6014TaskHandle_attributes);
+
   const osThreadAttr_t CAN1_SendTaskHandle_attributes = {
       .name = "CAN1_Send_TaskHandle",
-      .stack_size = 128 * 4,
+      .stack_size = 256 * 4, // 1024 字节，容纳 CAN 发送调用链和任务切换现场
       .priority = (osPriority_t)osPriorityNormal,
   };
   CAN1_Send_TaskHandle =
@@ -48,7 +58,7 @@ void osTaskInit(void) {
 
   const osThreadAttr_t CAN2_SendTaskHandle_attributes = {
       .name = "CAN2_Send_TaskHandle",
-      .stack_size = 128 * 4,
+      .stack_size = 256 * 4, // 1024 字节，容纳 CAN 发送调用链和任务切换现场
       .priority = (osPriority_t)osPriorityNormal,
   };
   CAN2_Send_TaskHandle =
@@ -56,7 +66,7 @@ void osTaskInit(void) {
 
   const osThreadAttr_t CAN3_SendTaskHandle_attributes = {
       .name = "CAN3_Send_TaskHandle",
-      .stack_size = 128 * 4,
+      .stack_size = 256 * 4, // 1024 字节，容纳 CAN 发送调用链和任务切换现场
       .priority = (osPriority_t)osPriorityNormal,
   };
   CAN3_Send_TaskHandle =
