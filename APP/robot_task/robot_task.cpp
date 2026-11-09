@@ -23,7 +23,7 @@
 #include "chassis_task.h"
 #include "com_config.h"
 #include "control_task.h"
-#include "debug_task.h"
+#include "gripper_task.h"
 
 /* module层接口头文件 */
 
@@ -33,7 +33,7 @@ extern osThreadId_t CAN2_Send_TaskHandle;
 extern osThreadId_t CAN3_Send_TaskHandle;
 extern osThreadId_t im6014TaskHandle;
 extern osThreadId_t uart3ProcessTaskHandle;
-extern osThreadId_t Debug_TaskHandle;
+extern osThreadId_t BeltTaskHandle;
 extern osThreadId_t ChassisTaskHandle;
 extern osThreadId_t ControlTaskHandle;
 extern osThreadId_t usbcdcProcessTaskHandle;
@@ -72,12 +72,12 @@ void osTaskInit(void) {
   CAN3_Send_TaskHandle =
       osThreadNew(can3SendTask, NULL, &CAN3_SendTaskHandle_attributes);
 
-  const osThreadAttr_t DebugTaskHandle_attributes = {
-      .name = "Debug_TaskHandle",
+  const osThreadAttr_t BeltTaskHandle_attributes = {
+      .name = "Gripper_Belts",
       .stack_size = 256 * 4,
       .priority = (osPriority_t)osPriorityNormal,
   };
-  Debug_TaskHandle = osThreadNew(debugTask, NULL, &DebugTaskHandle_attributes);
+  BeltTaskHandle = osThreadNew(beltTask, NULL, &BeltTaskHandle_attributes);
 
   const osThreadAttr_t ChassisTaskHandle_attributes = {
       .name = "Chassis_TaskHandle",

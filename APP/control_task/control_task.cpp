@@ -12,6 +12,7 @@
  * @versioninfo :
  */
 #include "control_task.h"
+#include "gripper_task.h"
 #include "topic_pool.h"
 #include "topics.hpp"
 #include "bsp_usart.h"
@@ -27,9 +28,18 @@ pub_chassis_cmd chassis_cmd{};
 static TypedTopicSubscriber<pub_Xbox_Data> control_xbox_sub("xbox",8);
 pub_Xbox_Data control_xbox_cmd{};
 
-// 处理xbox数据，处理为底盘控制指令
+// 处理xbox数据，处理为底盘控制指令和传送带方向请求。
 void Xbox_Data_Process()
 {
+  // 只在按键方向变化时提交，松开后的重复数据不覆盖自动流程命令。
+  static BeltDirection previous_direction = BeltDirection::Hold;
+  const auto direction = static_cast<BeltDirection>(
+      static_cast<int>(control_xbox_cmd.btnY) - static_cast<int>(control_xbox_cmd.btnA));
+  if (direction != previous_direction) {
+    gripperBeltMove(direction);
+    previous_direction = direction;
+  }
+
   if (ABS(control_xbox_cmd.joyLHori - 32767) > 2000)
   {
     chassis_cmd.linear_x_ = (int)(control_xbox_cmd.joyLHori - 32767) / 32767.0f * MAX_VELOCITY;

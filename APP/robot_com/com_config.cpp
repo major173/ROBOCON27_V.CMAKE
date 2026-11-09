@@ -20,7 +20,7 @@
 
 #include "Button.hpp"
 #include "Canbus.hpp"
-#include "GripperController.hpp"
+#include "gripper_task.h"
 #include "Motor.hpp"
 #include "ROSCom.hpp"
 #include "UartPort.hpp"
@@ -37,7 +37,6 @@
 osThreadId_t CAN1_Send_TaskHandle;
 osThreadId_t CAN2_Send_TaskHandle;
 osThreadId_t CAN3_Send_TaskHandle;
-osThreadId_t im6014TaskHandle;
 osThreadId_t uart3ProcessTaskHandle;
 osThreadId_t usbcdcProcessTaskHandle;
 
@@ -51,17 +50,15 @@ CanBus fdcan3_bus(hfdcan3);
 
 // can设备
 
+// 夹爪两侧传送带：CAN2，电调 ID 分别为 1、2
+C610Motor gripper_left_2006(&fdcan2_bus, 0x201, 0, 0x200, 0);
+C610Motor gripper_right_2006(&fdcan2_bus, 0x202, 0, 0x200, 0);
+
 // 底盘电机
 C620Motor chassis_motor1(&fdcan3_bus, 0x201, 0, 0x200, 0);
 C620Motor chassis_motor2(&fdcan3_bus, 0x202, 0, 0x200, 0);
 C620Motor chassis_motor3(&fdcan3_bus, 0x203, 0, 0x200, 0);
 C620Motor chassis_motor4(&fdcan3_bus, 0x204, 0, 0x200, 0);
-
-//
-C610Motor arm2006_motor(&fdcan2_bus, 0x205, 0, 0x1FF, 0);
-C620Motor arm3508_motor(&fdcan2_bus, 0x206, 0, 0x1FF, 0);
-DM4310Motor arm4310_motor(&fdcan2_bus, 0x301, 0, 0x01, 0,
-                         DM4310Motor::PosWithSpeed);
 
 // 串口外设（回调+信号量唤醒处理线程进行解包）
 void onUart3RxCb(const uint8_t *data, size_t len, void *user);
@@ -75,32 +72,6 @@ DMA_BUFFER_ATTR static uint8_t uart3_tx_dma[64];
 UartPort uart3_port(&huart3, uart3_rx_dma, sizeof(uart3_rx_dma), uart3_tx_dma,
                     sizeof(uart3_tx_dma), onUart3RxCb, nullptr);
 osSemaphoreId_t uart3_rx_semphore = NULL;
-
-//IM6014
-struct IM6014Status {
-  HAL_StatusTypeDef rx_status{HAL_ERROR};  // RX DMA 启动结果
-  HAL_StatusTypeDef tx_status{HAL_ERROR};  // 最近一次阻塞发送结果
-  bool encode_ok{false};
-  bool awaiting_reply{false};
-  uint32_t tx_count{0};
-  uint32_t rx_count{0};                   // 有效反馈序号，同时供控制器判断新帧
-  uint32_t last_tx_ms{0};
-  uint32_t last_rx_ms{0};
-};
-
-// Ozone 展开 im6014[0]
-struct IM6014Device {
-  IM6014::Feedback IM6014_core{};
-  IM6014::Command IM6014_control{};
-  IM6014Status status{};
-  IM6014::StreamParser parser{0};
-  GripperController gripper{};
-};
-
-// IM6014 复用 USART2 / RS485_1，只有 im6014Task 读写这个端口。
-IM6014Device im6014[1];
-DMA_BUFFER_ATTR static uint8_t uart2_rx_dma[UartPort::kPacketPayloadSize];
-static UartPort uart2_port(&huart2, uart2_rx_dma, sizeof(uart2_rx_dma));
 
 // Xbox控制器（基于uart3）
 XboxRemote xbox_remote(uart3_port);
@@ -128,24 +99,23 @@ uint8_t comServiceInit() {
   fdcan2_bus.init();
   fdcan3_bus.init();
 
+  // 初始化 CAN2 两侧传送带电机
+  gripper_left_2006.init();
+  gripper_right_2006.init();
+
+  // 注册 CAN2 电机反馈
+  fdcan2_bus.registerDevice(&gripper_left_2006);
+  fdcan2_bus.registerDevice(&gripper_right_2006);
+
   chassis_motor1.init();
   chassis_motor2.init();
   chassis_motor3.init();
   chassis_motor4.init();
 
-  arm2006_motor.init();
-  arm3508_motor.init();
-  arm4310_motor.init();
-
   fdcan3_bus.registerDevice(&chassis_motor1);
   fdcan3_bus.registerDevice(&chassis_motor2);
   fdcan3_bus.registerDevice(&chassis_motor3);
   fdcan3_bus.registerDevice(&chassis_motor4);
-
-
-  fdcan2_bus.registerDevice(&arm2006_motor);
-  fdcan2_bus.registerDevice(&arm3508_motor);
-  fdcan2_bus.registerDevice(&arm4310_motor);
 
   // 串口外设
   uart3_rx_semphore = osSemaphoreNew(1, 0, NULL);
@@ -185,25 +155,21 @@ void can1SendTask(void *argument) {
 }
 
 void can2SendTask(void *argument) {
+  (void)argument;
   TickType_t currentTime = xTaskGetTickCount();
-  CanBus::ClassicPack pack;
+  CanBus::ClassicPack pack{};
   pack.type = CanBus::Type::STANDARD;
-
+  pack.id = 0x200;
+  const uint32_t motor_ids[2] = {0x201, 0x202};
   uint8_t len = 8;
-  const uint32_t arm_motor_ids[4] = {0x205, 0x206, 0x207, 0x208};
+
   for (;;) {
-    pack.id = 0x1FF; // DJI Group 2
-    // 当前仅有 0x201(arm2006) 和 0x203(arm3508)，其余槽位置 0
-    int16_t commands[4] = {0};
-
-    // arm motor
-    commands[0] = static_cast<int16_t>(arm2006_motor.cmdTrans()); // 0x201
-    commands[1] = static_cast<int16_t>(arm3508_motor.cmdTrans()); // 0x203
-    commands[2] = static_cast<int16_t>(0); // 0x203
-    commands[3] = static_cast<int16_t>(0); // 0x204
-    packDJIMotorCanMsg(pack.id, arm_motor_ids, commands, 4, pack.data, len);
-    // fdcan2_bus.addCanMsg(pack);
-
+    // 左右电流指令合并为一帧，其余两个槽位由打包函数清零。
+    const int16_t commands[2] = {
+        static_cast<int16_t>(gripper_left_2006.cmdTrans()),
+        static_cast<int16_t>(gripper_right_2006.cmdTrans())};
+    packDJIMotorCanMsg(pack.id, motor_ids, commands, 2, pack.data, len);
+    fdcan2_bus.addCanMsg(pack);
     vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
   }
 }
@@ -221,81 +187,14 @@ void can3SendTask(void *argument) {
     // 一帧固定打包 4 个槽位：0x201~0x204
     pack.id = 0x200; // DJI Group 2
 
-    // 当前仅有 0x201(arm2006) 和 0x203(arm3508)，其余槽位置 0
     int16_t commands[4] = {0};
     commands[0] = static_cast<int16_t>(chassis_motor1.cmdTrans()); // 0x201
     commands[1] = static_cast<int16_t>(chassis_motor2.cmdTrans()); // 0x202
     commands[2] = static_cast<int16_t>(chassis_motor3.cmdTrans()); // 0x203   
     commands[3] = static_cast<int16_t>(chassis_motor4.cmdTrans()); // 0x204
     packDJIMotorCanMsg(pack.id, chassis_motor_ids, commands, 4, pack.data, len);
-    // arm3508_motor.manager_->addCanMsg(pack);
     fdcan3_bus.addCanMsg(pack);
     vTaskDelayUntil(&currentTime, 1); // 每1ms执行一次发送任务
-  }
-}
-// 夹爪任务
-void im6014Task(void *argument) { // uart2：IM6014 / RS485_1
-  (void)argument;
-  auto &motor = im6014[0];
-  // 默认配置中的待配置项会让控制器保持 UNINITIALIZED、输出 Stop。
-  (void)motor.gripper.init(GripperConfig{});
-  motor.status.rx_status = uart2_port.startRxDmaIdle();
-  uint8_t tx_frame[IM6014::kTxSize]{};
-  UartPort::Packet packet{};
-  TickType_t wake_tick = xTaskGetTickCount();
-
-  for (;;) {
-    uint32_t action;
-    if (xTaskNotifyWait(0, UINT32_MAX, &action, 0) == pdTRUE) {
-      motor.gripper.request(static_cast<GripperAction>(action), 350.0f);
-    }
-    const uint32_t now_ms = HAL_GetTick();
-    const uint32_t rx_before = motor.status.rx_count;
-    // 每轮最多处理一队列数据，随后继续控制更新和发送。
-    for (std::size_t n = 0; n < UartPort::kRxQueueDepth && uart2_port.Read(packet); ++n) {
-      for (uint16_t i = 0; i < packet.len; ++i) {
-        if (!motor.parser.feed(packet.data[i], motor.IM6014_core)) continue;
-        ++motor.status.rx_count;
-        motor.status.last_rx_ms = now_ms;
-        motor.status.awaiting_reply = false;
-        // 每个有效帧更新一次，保留连续接触确认。
-        motor.gripper.update(motor.IM6014_core, motor.status.rx_count,
-                             motor.status.last_rx_ms, now_ms,
-                             motor.IM6014_control);
-      }
-    }
-    // 本轮没有有效帧时，也要处理失联、动作请求和运动斜坡。
-    if (motor.status.rx_count == rx_before)
-      motor.gripper.update(motor.IM6014_core, motor.status.rx_count,
-                           motor.status.last_rx_ms, now_ms,
-                           motor.IM6014_control);
-    // 单次回复等待和阻塞发送超时均为 5 ms。
-    if (now_ms - motor.status.last_tx_ms >= 5)
-      motor.status.awaiting_reply = false;
-    if (!motor.status.awaiting_reply) {
-      if (motor.IM6014_core.timed_out) {
-        motor.IM6014_control = IM6014::Command{}; // 先发送 Stop。
-        motor.IM6014_control.timeout_enabled = false; // 按协议清除超时状态。
-      }
-      motor.status.encode_ok = IM6014::encodeCommand(
-          motor.IM6014_control, tx_frame, sizeof(tx_frame));
-      if (motor.status.encode_ok) {
-        motor.status.tx_status = uart2_port.write(tx_frame, sizeof(tx_frame), 5);
-        if (motor.status.tx_status == HAL_OK) {
-          ++motor.status.tx_count;
-          motor.status.last_tx_ms = HAL_GetTick();
-          motor.status.awaiting_reply = true;
-        }
-      }
-    }
-    vTaskDelayUntil(&wake_tick, pdMS_TO_TICKS(1)); // 每 1 ms 调度一次。
-  }
-}
-
-static void sendGripperAction(GripperAction action) {
-  if (im6014TaskHandle != nullptr) {
-    xTaskNotify(static_cast<TaskHandle_t>(im6014TaskHandle),
-                static_cast<uint32_t>(action), eSetValueWithOverwrite);
   }
 }
 // XBOX遥控任务
@@ -341,11 +240,11 @@ void uart3RxProcessTask(void *argument) {
           const auto lb = lb_button.update(ctrl_data.btnLB, now_ms);
           const auto rb = rb_button.update(ctrl_data.btnRB, now_ms);
           if (rb.long_press) {
-            sendGripperAction(GripperAction::Home);
+            gripperRequest(GripperAction::Home);
           } else if (rb.short_press) {
-            sendGripperAction(GripperAction::Release);
+            gripperRequest(GripperAction::Release);
           } else if (lb.short_press && !ctrl_data.btnRB) {
-            sendGripperAction(GripperAction::Grip);
+            gripperRequest(GripperAction::Grip);
           }
         }
       }
